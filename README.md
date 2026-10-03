@@ -25,10 +25,10 @@ them from the macro window (`/macro`) to your action bars.
   Food that restores mana as well counts for both macros. Remaining ties go
   to the smallest stack, so your bags clear out.
 - In combat, `BR Eat` uses your best healthstone instead of food. With
-  potions turned on, it uses your best healing potion when you have no
-  healthstone, and `BR Drink` uses your best mana potion. A healthstone used
-  up mid-fight is replaced by the potion once the fight ends, because macros
-  cannot change in combat.
+  potions turned on, `BR Drink` uses your best mana potion, and `BR Eat`
+  steps through healthstone and healing potion: the first press in a fight
+  uses the stone, the second the potion, and the order starts over when the
+  fight ends. Without a healthstone it uses the potion straight away.
 - Buff food (Well Fed) is left out of `BR Eat`. Use `/br buff` to include it.
 - Macros cannot change in combat, so they update when combat ends.
 - With nothing to use, the macro stays on your bar and says so when clicked.

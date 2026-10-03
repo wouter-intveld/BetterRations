@@ -161,15 +161,17 @@ local function ScanBags()
     end
 end
 
--- What the macro uses in combat instead of food or drink, if anything.
--- A healthstone comes before a healing potion.
-local function CombatItem(key)
+-- What the macro uses in combat instead of food or drink: up to two items.
+-- With two, the macro steps through them, healthstone first, then potion.
+local function CombatItems(key)
     if key == "eat" then
-        return (db.healthstone and best.healthstone) or (db.potions and best.healthPotion) or nil
+        local stone = db.healthstone and best.healthstone or nil
+        local potion = db.potions and best.healthPotion or nil
+        return stone or potion, stone and potion or nil
     elseif key == "drink" then
-        return db.potions and best.manaPotion or nil
+        return db.potions and best.manaPotion or nil, nil
     end
-    return nil
+    return nil, nil
 end
 
 ---------------------------------------------------------------------------
@@ -209,12 +211,18 @@ local function Update(reason)
     local t0, kb0 = debugprofilestop(), collectgarbage("count")
     ScanBags()
     for _, k in ipairs(KINDS) do
-        local b, c = best[k.key], CombatItem(k.key)
+        local b = best[k.key]
+        local c1, c2 = CombatItems(k.key)
         local body
-        if c and b then
-            body = ("#showtooltip\n/use [combat] item:%d; item:%d"):format(c.itemID, b.itemID)
-        elseif c then
-            body = "#showtooltip\n/use item:" .. c.itemID
+        if c1 and c2 and b then
+            body = ("#showtooltip\n/castsequence [combat] reset=combat item:%d, item:%d; item:%d"):format(
+                c1.itemID, c2.itemID, b.itemID)
+        elseif c1 and c2 then
+            body = ("#showtooltip\n/castsequence reset=combat item:%d, item:%d"):format(c1.itemID, c2.itemID)
+        elseif c1 and b then
+            body = ("#showtooltip\n/use [combat] item:%d; item:%d"):format(c1.itemID, b.itemID)
+        elseif c1 then
+            body = "#showtooltip\n/use item:" .. c1.itemID
         elseif b then
             body = "#showtooltip\n/use item:" .. b.itemID
         else
@@ -319,14 +327,19 @@ SlashCmdList.BETTERRATIONS = function(msg)
     elseif cmd == "" or cmd == "status" then
         Update("status")
         for _, k in ipairs(KINDS) do
-            local b, c = best[k.key], CombatItem(k.key)
+            local b = best[k.key]
+            local c1, c2 = CombatItems(k.key)
             if b then
                 Print(("%s: %s (%s, %d in bags)"):format(k.macro, Link(b.itemID), b.amount, b.count))
             else
                 Print(k.macro .. ": " .. k.empty)
             end
-            if c then
-                Print(("%s in combat: %s (%s, %d in bags)"):format(k.macro, Link(c.itemID), c.amount, c.count))
+            if c1 then
+                local line = ("%s in combat: %s (%s, %d in bags)"):format(k.macro, Link(c1.itemID), c1.amount, c1.count)
+                if c2 then
+                    line = line .. (", then %s (%s, %d in bags)"):format(Link(c2.itemID), c2.amount, c2.count)
+                end
+                Print(line)
             end
         end
     else

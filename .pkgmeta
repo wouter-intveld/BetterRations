@@ -3,3 +3,4 @@ package-as: BetterRations
 ignore:
   - .luarc.json
   - .github
+  - art

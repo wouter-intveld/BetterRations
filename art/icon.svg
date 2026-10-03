@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="70%">
+      <stop offset="0" stop-color="#2a2433"/>
+      <stop offset="1" stop-color="#0d0b12"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/>
+      <stop offset="0.55" stop-color="#e0b04a"/>
+      <stop offset="1" stop-color="#9a6a22"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bfe6ff"/>
+      <stop offset="0.55" stop-color="#4aa3e0"/>
+      <stop offset="1" stop-color="#1f5f9a"/>
+    </linearGradient>
+    <linearGradient id="border" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3d27a"/>
+      <stop offset="0.5" stop-color="#a8792a"/>
+      <stop offset="1" stop-color="#e8c066"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <!-- Background tile with gold border -->
+  <rect x="16" y="16" width="480" height="480" rx="72" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="72" fill="none" stroke="url(#border)" stroke-width="14"/>
+
+  <!-- Loaf of bread -->
+  <path filter="url(#shadow)" fill="url(#gold)" stroke="#5a3d12" stroke-width="6"
+        d="M96 380 C80 380 76 360 80 330 C92 236 168 188 256 188 C344 188 420 236 432 330 C436 360 432 380 416 380 Z"/>
+  <!-- Score marks -->
+  <g fill="none" stroke="#1c140b" stroke-width="16" stroke-linecap="round">
+    <path d="M170 250 L196 326"/>
+    <path d="M246 236 L266 324"/>
+    <path d="M322 250 L336 326"/>
+  </g>
+
+  <!-- Water drop -->
+  <path filter="url(#shadow)" fill="url(#water)" stroke="#0e2f4d" stroke-width="6"
+        d="M380 60 C380 60 320 132 320 172 A60 60 0 0 0 440 172 C440 132 380 60 380 60 Z"/>
+  <ellipse cx="358" cy="170" rx="10" ry="18" fill="#ffffff" fill-opacity="0.55"/>
+</svg>

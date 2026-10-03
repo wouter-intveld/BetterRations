@@ -202,7 +202,9 @@ local retriesLeft = 0
 local Retry -- defined after Update; they call each other
 
 local function Update(reason)
-    if InCombatLockdown() then
+    -- No macro edits in combat, and on a flight path items are not usable,
+    -- so a scan there would empty the macros. Both cases run when they end.
+    if InCombatLockdown() or UnitOnTaxi("player") then
         dirty = true
         return
     end
@@ -258,9 +260,6 @@ local function RequestUpdate(reason)
     C_Timer.After(0.5, RunPending)
 end
 
-local function LevelUpdate()
-    RequestUpdate("PLAYER_LEVEL_UP")
-end
 
 ---------------------------------------------------------------------------
 -- Settings panel
@@ -369,7 +368,8 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         RegisterSettings()
         for _, e in ipairs({
             "PLAYER_ENTERING_WORLD", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP",
-            "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "ITEM_DATA_LOAD_RESULT",
+            "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_CONTROL_GAINED",
+            "ITEM_DATA_LOAD_RESULT",
         }) do
             frame:RegisterEvent(e)
         end
@@ -387,9 +387,9 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         if dirty then Update(event) end
         return
     end
-    if event == "PLAYER_LEVEL_UP" then
-        -- Usability can lag the level change by a moment.
-        C_Timer.After(1, LevelUpdate)
+    if event == "PLAYER_LEVEL_UP" or event == "PLAYER_CONTROL_GAINED" then
+        -- Usability lags a level-up, and landing from a flight, by a moment.
+        C_Timer.After(1, function() RequestUpdate(event) end)
         return
     end
     RequestUpdate(event)

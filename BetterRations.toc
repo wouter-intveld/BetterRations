@@ -1,0 +1,9 @@
+## Interface: 16001
+## Title: |cff33ff99Better|rRations
+## Notes: Self-updating macros for your best food, drink and bandage.
+## Author: deface
+## Version: @project-version@
+## IconTexture: Interface\Icons\INV_Misc_Fork&Knife
+## SavedVariables: BetterRationsDB
+
+BetterRations.lua

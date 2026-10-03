@@ -3,6 +3,7 @@ local ADDON = ...
 local DEFAULTS = {
     buffFood = false, -- allow Well Fed food in the eat macro
     healthstone = true, -- use a healthstone from the eat macro in combat
+    potions = false, -- healing potion in BR Eat and mana potion in BR Drink, in combat
 }
 
 local KINDS = {
@@ -11,8 +12,8 @@ local KINDS = {
     { key = "bandage", macro = "BR Bandage", empty = "no usable bandage" },
 }
 
--- Keys of best: the four things a bag item can be good for.
-local PICKS = { "eat", "drink", "bandage", "healthstone" }
+-- Keys of best: the things a bag item can be good for.
+local PICKS = { "eat", "drink", "bandage", "healthstone", "healthPotion", "manaPotion" }
 
 local MAX_ACCOUNT_MACROS = 120 -- the global of this name is missing on this client
 local QUESTION_MARK_ICON = 134400 -- with #showtooltip the macro shows the item's own icon
@@ -25,6 +26,10 @@ local function Print(msg)
     print("|cff33ff99BetterRations|r: " .. msg)
 end
 
+local function Link(itemID)
+    return select(2, C_Item.GetItemInfo(itemID)) or ("item " .. itemID)
+end
+
 ---------------------------------------------------------------------------
 -- Item classification, parsed once per itemID from the item tooltip.
 -- English tooltip text only for now.
@@ -34,6 +39,8 @@ end
 ---@field mana number
 ---@field bandage number
 ---@field healthstone number
+---@field healthPotion number
+---@field manaPotion number
 ---@field wellFed boolean
 ---@field conjured boolean
 
@@ -60,21 +67,29 @@ local function ParseItem(id, bag, slot)
         if l.leftText then parts[#parts + 1] = l.leftText end
     end
     local text = table.concat(parts, "\n")
-    local info = { health = 0, mana = 0, bandage = 0, healthstone = 0, wellFed = false, conjured = false }
+    local info = {
+        health = 0, mana = 0, bandage = 0, healthstone = 0, healthPotion = 0, manaPotion = 0,
+        wellFed = false, conjured = false,
+    }
+    local name = parts[1] or ""
     -- Food and drink require sitting; this keeps potions and healthstones out.
     if text:find("seated") then
         info.health = Number(text:match("Restores ([%d%.,]+) health"))
         info.mana = Number(text:match("([%d%.,]+) mana"))
         info.wellFed = text:lower():find("well fed") ~= nil
+    elseif name:find("Healthstone") then
+        info.healthstone = Number(text:match("[Rr]estores ([%d%.,]+)"))
+    elseif name:find("Potion") then
+        -- Potions restore a range; rank them by the low end.
+        info.healthPotion = Number(text:match("Restores ([%d%.,]+) to [%d%.,]+ health"))
+        info.manaPotion = Number(text:match("Restores ([%d%.,]+) to [%d%.,]+ mana"))
     end
     info.bandage = Number(text:match("Heals ([%d%.,]+) damage over"))
-    if parts[1] and parts[1]:find("Healthstone") then
-        info.healthstone = Number(text:match("[Rr]estores ([%d%.,]+)"))
-    end
     for _, l in ipairs(parts) do
         if l == ITEM_CONJURED then info.conjured = true end
     end
-    if info.health == 0 and info.mana == 0 and info.bandage == 0 and info.healthstone == 0 then
+    if info.health == 0 and info.mana == 0 and info.bandage == 0 and info.healthstone == 0
+        and info.healthPotion == 0 and info.manaPotion == 0 then
         return false
     end
     return info
@@ -91,6 +106,10 @@ local function Amount(kind, info)
         return info.mana
     elseif kind == "healthstone" then
         return info.healthstone
+    elseif kind == "healthPotion" then
+        return db.potions and info.healthPotion or 0
+    elseif kind == "manaPotion" then
+        return db.potions and info.manaPotion or 0
     end
     return info.bandage
 end
@@ -140,6 +159,17 @@ local function ScanBags()
     end
 end
 
+-- What the macro uses in combat instead of food or drink, if anything.
+-- A healthstone comes before a healing potion.
+local function CombatItem(key)
+    if key == "eat" then
+        return (db.healthstone and best.healthstone) or (db.potions and best.healthPotion) or nil
+    elseif key == "drink" then
+        return db.potions and best.manaPotion or nil
+    end
+    return nil
+end
+
 ---------------------------------------------------------------------------
 -- Macros (account-wide). Macros can't be edited in combat.
 ---------------------------------------------------------------------------
@@ -177,13 +207,12 @@ local function Update(reason)
     local t0, kb0 = debugprofilestop(), collectgarbage("count")
     ScanBags()
     for _, k in ipairs(KINDS) do
-        local b = best[k.key]
+        local b, c = best[k.key], CombatItem(k.key)
         local body
-        local hs = k.key == "eat" and db.healthstone and best.healthstone
-        if hs and b then
-            body = ("#showtooltip\n/use [combat] item:%d; item:%d"):format(hs.itemID, b.itemID)
-        elseif hs then
-            body = "#showtooltip\n/use item:" .. hs.itemID
+        if c and b then
+            body = ("#showtooltip\n/use [combat] item:%d; item:%d"):format(c.itemID, b.itemID)
+        elseif c then
+            body = "#showtooltip\n/use item:" .. c.itemID
         elseif b then
             body = "#showtooltip\n/use item:" .. b.itemID
         else
@@ -242,6 +271,8 @@ local function RegisterSettings()
         "Let BR Eat use food that makes you Well Fed. Off keeps buff food for when you want the buff.")
     Checkbox("healthstone", "Healthstone in combat",
         "In combat, BR Eat uses your best healthstone instead of food.")
+    Checkbox("potions", "Potions in combat",
+        "In combat, BR Eat uses your best healing potion (after a healthstone, if you have one) and BR Drink your best mana potion.")
     Settings.RegisterAddOnCategory(category)
     settingsCategory = category
 end
@@ -257,6 +288,10 @@ SlashCmdList.BETTERRATIONS = function(msg)
         db.buffFood = not db.buffFood
         Print("buff food in BR Eat " .. (db.buffFood and "on" or "off"))
         Update("buff")
+    elseif cmd == "potions" then
+        db.potions = not db.potions
+        Print("potions in combat " .. (db.potions and "on" or "off"))
+        Update("potions")
     elseif cmd == "options" or cmd == "config" then
         Settings.OpenToCategory(settingsCategory:GetID())
     elseif cmd == "perf" then
@@ -282,12 +317,14 @@ SlashCmdList.BETTERRATIONS = function(msg)
     elseif cmd == "" or cmd == "status" then
         Update("status")
         for _, k in ipairs(KINDS) do
-            local b = best[k.key]
+            local b, c = best[k.key], CombatItem(k.key)
             if b then
-                local link = select(2, C_Item.GetItemInfo(b.itemID)) or ("item " .. b.itemID)
-                Print(("%s: %s (%s, %d in bags)"):format(k.macro, link, b.amount, b.count))
+                Print(("%s: %s (%s, %d in bags)"):format(k.macro, Link(b.itemID), b.amount, b.count))
             else
                 Print(k.macro .. ": " .. k.empty)
+            end
+            if c then
+                Print(("%s in combat: %s (%s, %d in bags)"):format(k.macro, Link(c.itemID), c.amount, c.count))
             end
         end
     else
@@ -296,6 +333,7 @@ SlashCmdList.BETTERRATIONS = function(msg)
         print("  /br options - open the settings")
         print("  /br perf - scan count, timing and memory; add reset to zero the counters")
         print("  /br buff - toggle Well Fed food in BR Eat (now " .. (db.buffFood and "on" or "off") .. ")")
+        print("  /br potions - toggle potions in combat (now " .. (db.potions and "on" or "off") .. ")")
     end
 end
 

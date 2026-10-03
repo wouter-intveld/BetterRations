@@ -24,7 +24,11 @@ them from the macro window (`/macro`) to your action bars.
 - Conjured food and water win over anything that restores the same or less.
   Food that restores mana as well counts for both macros. Remaining ties go
   to the smallest stack, so your bags clear out.
-- In combat, `BR Eat` uses your best healthstone instead of food.
+- In combat, `BR Eat` uses your best healthstone instead of food. With
+  potions turned on, it uses your best healing potion when you have no
+  healthstone, and `BR Drink` uses your best mana potion. A healthstone used
+  up mid-fight is replaced by the potion once the fight ends, because macros
+  cannot change in combat.
 - Buff food (Well Fed) is left out of `BR Eat`. Use `/br buff` to include it.
 - Macros cannot change in combat, so they update when combat ends.
 - With nothing to use, the macro stays on your bar and says so when clicked.
@@ -34,10 +38,11 @@ them from the macro window (`/macro`) to your action bars.
 - `/br` - show the chosen items
 - `/br options` - open the settings (also under Options > AddOns)
 - `/br buff` - toggle buff food in `BR Eat`
+- `/br potions` - toggle potions in combat
 - `/br perf` - scan count, timing and memory
 
-The settings turn buff food and the in-combat healthstone in `BR Eat` on or
-off.
+The settings turn buff food, the in-combat healthstone and potions on or off.
+Potions are off by default.
 
 ## Limits
 

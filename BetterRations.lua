@@ -105,10 +105,12 @@ end
 
 local best = {}
 local seen = {} ---@type table<number, BRItemInfo> consumables in the bags right now
+local unresolved = 0 -- items the last scan could not read yet
 
 local function ScanBags()
     wipe(best)
     wipe(seen)
+    unresolved = 0
     for bag = 0, NUM_BAG_SLOTS do
         for slot = 1, C_Container.GetContainerNumSlots(bag) do
             local id = C_Container.GetContainerItemID(bag, slot)
@@ -117,6 +119,7 @@ local function ScanBags()
                 if info == nil then
                     info = ParseItem(id, bag, slot)
                     itemCache[id] = info
+                    if info == nil then unresolved = unresolved + 1 end
                 end
                 if info then seen[id] = info end
             end
@@ -158,12 +161,19 @@ local function SetMacro(name, body)
     end
 end
 
+-- A freshly crafted or looted item can be unreadable for a moment (its data
+-- or its spell not loaded yet). A scan that hit one is retried a few times.
+local RETRIES = 3
+local retriesLeft = 0
+local Retry -- defined after Update; they call each other
+
 local function Update(reason)
     if InCombatLockdown() then
         dirty = true
         return
     end
     dirty = false
+    if reason ~= "retry" then retriesLeft = RETRIES end
     local t0, kb0 = debugprofilestop(), collectgarbage("count")
     ScanBags()
     for _, k in ipairs(KINDS) do
@@ -185,6 +195,14 @@ local function Update(reason)
     perf.scans = perf.scans + 1
     perf.last, perf.lastKB, perf.lastReason = ms, collectgarbage("count") - kb0, reason
     if ms > perf.slowest then perf.slowest, perf.slowestReason = ms, reason end
+    if unresolved > 0 and retriesLeft > 0 then
+        retriesLeft = retriesLeft - 1
+        C_Timer.After(1, Retry)
+    end
+end
+
+function Retry()
+    Update("retry")
 end
 
 -- Bag events come in bursts; update once shortly after.
@@ -251,8 +269,8 @@ SlashCmdList.BETTERRATIONS = function(msg)
             if v then useful = useful + 1 end
         end
         UpdateAddOnMemoryUsage()
-        Print(("memory %.1f KB, %d items cached (%d consumables), %d scans, %d macro edits"):format(
-            GetAddOnMemoryUsage(ADDON), cached, useful, perf.scans, perf.edits))
+        Print(("memory %.1f KB, %d items cached (%d consumables, %d unresolved), %d scans, %d macro edits"):format(
+            GetAddOnMemoryUsage(ADDON), cached, useful, unresolved, perf.scans, perf.edits))
         Print(("scan: last %.2f ms / %.1f KB (%s), slowest %.2f ms (%s)"):format(
             perf.last, perf.lastKB, perf.lastReason, perf.slowest, perf.slowestReason))
         if C_AddOnProfiler.IsEnabled() then

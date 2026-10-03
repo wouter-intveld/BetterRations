@@ -11,6 +11,9 @@ local KINDS = {
     { key = "bandage", macro = "BR Bandage", empty = "no usable bandage" },
 }
 
+-- Keys of best: the four things a bag item can be good for.
+local PICKS = { "eat", "drink", "bandage", "healthstone" }
+
 local MAX_ACCOUNT_MACROS = 120 -- the global of this name is missing on this client
 local QUESTION_MARK_ICON = 134400 -- with #showtooltip the macro shows the item's own icon
 
@@ -34,13 +37,22 @@ end
 ---@field wellFed boolean
 ---@field conjured boolean
 
-local itemCache = {} ---@type table<number, BRItemInfo>
+-- false marks an item with nothing to offer; nil means not parsed yet.
+local itemCache = {} ---@type table<number, BRItemInfo|false>
+local awaiting = {} -- item IDs whose data was requested from the server
 
 local function Number(s)
     return s and tonumber((s:gsub(",", ""))) or 0
 end
 
-local function ParseItem(bag, slot)
+---@return BRItemInfo|false|nil info false when the item has no use, nil when its data is not loaded yet
+local function ParseItem(id, bag, slot)
+    if not C_Item.IsItemDataCachedByID(id) then
+        -- The tooltip would only say "Retrieving item information".
+        awaiting[id] = true
+        C_Item.RequestLoadItemDataByID(id)
+        return nil
+    end
     local data = C_TooltipInfo.GetBagItem(bag, slot)
     if not data or not data.lines then return nil end
     local parts = {}
@@ -61,6 +73,9 @@ local function ParseItem(bag, slot)
     end
     for _, l in ipairs(parts) do
         if l == ITEM_CONJURED then info.conjured = true end
+    end
+    if info.health == 0 and info.mana == 0 and info.bandage == 0 and info.healthstone == 0 then
+        return false
     end
     return info
 end
@@ -89,32 +104,32 @@ local function Better(a, b)
 end
 
 local best = {}
+local seen = {} ---@type table<number, BRItemInfo> consumables in the bags right now
 
 local function ScanBags()
     wipe(best)
-    local counts = {} -- total count per itemID across stacks
-    local seen = {}
+    wipe(seen)
     for bag = 0, NUM_BAG_SLOTS do
         for slot = 1, C_Container.GetContainerNumSlots(bag) do
-            local item = C_Container.GetContainerItemInfo(bag, slot)
-            if item and item.itemID then
-                local id = item.itemID
-                counts[id] = (counts[id] or 0) + item.stackCount
-                if itemCache[id] == nil then
-                    itemCache[id] = ParseItem(bag, slot) or nil
+            local id = C_Container.GetContainerItemID(bag, slot)
+            if id then
+                local info = itemCache[id] ---@type BRItemInfo|false|nil
+                if info == nil then
+                    info = ParseItem(id, bag, slot)
+                    itemCache[id] = info
                 end
-                if itemCache[id] then seen[id] = true end
+                if info then seen[id] = info end
             end
         end
     end
-    for id in pairs(seen) do
-        local info = itemCache[id]
+    for id, info in pairs(seen) do
         -- IsUsableItem covers the level requirement and First Aid skill.
         if C_Item.IsUsableItem(id) then
-            for _, key in ipairs({ "eat", "drink", "bandage", "healthstone" }) do
+            local count = C_Item.GetItemCount(id)
+            for _, key in ipairs(PICKS) do
                 local amount = Amount(key, info)
                 if amount > 0 then
-                    local c = { itemID = id, amount = amount, conjured = info.conjured, count = counts[id] }
+                    local c = { itemID = id, amount = amount, conjured = info.conjured, count = count }
                     if not best[key] or Better(c, best[key]) then best[key] = c end
                 end
             end
@@ -173,14 +188,17 @@ local function Update(reason)
 end
 
 -- Bag events come in bursts; update once shortly after.
-local pending = false
+local pending, pendingReason = false, ""
+
+local function RunPending()
+    pending = false
+    Update(pendingReason)
+end
+
 local function RequestUpdate(reason)
     if pending then return end
-    pending = true
-    C_Timer.After(0.5, function()
-        pending = false
-        Update(reason)
-    end)
+    pending, pendingReason = true, reason
+    C_Timer.After(0.5, RunPending)
 end
 
 local function LevelUpdate()
@@ -227,11 +245,14 @@ SlashCmdList.BETTERRATIONS = function(msg)
         if arg == "reset" then
             perf.scans, perf.edits, perf.slowest, perf.slowestReason = 0, 0, 0, ""
         end
-        local cached = 0
-        for _ in pairs(itemCache) do cached = cached + 1 end
+        local cached, useful = 0, 0
+        for _, v in pairs(itemCache) do
+            cached = cached + 1
+            if v then useful = useful + 1 end
+        end
         UpdateAddOnMemoryUsage()
-        Print(("memory %.1f KB, %d items cached, %d scans, %d macro edits"):format(
-            GetAddOnMemoryUsage(ADDON), cached, perf.scans, perf.edits))
+        Print(("memory %.1f KB, %d items cached (%d consumables), %d scans, %d macro edits"):format(
+            GetAddOnMemoryUsage(ADDON), cached, useful, perf.scans, perf.edits))
         Print(("scan: last %.2f ms / %.1f KB (%s), slowest %.2f ms (%s)"):format(
             perf.last, perf.lastKB, perf.lastReason, perf.slowest, perf.slowestReason))
         if C_AddOnProfiler.IsEnabled() then
@@ -265,7 +286,7 @@ end
 ---------------------------------------------------------------------------
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("ADDON_LOADED")
-frame:SetScript("OnEvent", function(_, event, arg1)
+frame:SetScript("OnEvent", function(_, event, arg1, arg2)
     if event == "ADDON_LOADED" then
         if arg1 ~= ADDON then return end
         BetterRationsDB = BetterRationsDB or {}
@@ -277,9 +298,17 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         RegisterSettings()
         for _, e in ipairs({
             "PLAYER_ENTERING_WORLD", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP",
-            "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED",
+            "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "ITEM_DATA_LOAD_RESULT",
         }) do
             frame:RegisterEvent(e)
+        end
+        return
+    end
+    if event == "ITEM_DATA_LOAD_RESULT" then
+        -- Other addons request item data too; only act on our own requests.
+        if awaiting[arg1] then
+            awaiting[arg1] = nil
+            if arg2 then RequestUpdate(event) else itemCache[arg1] = false end
         end
         return
     end

@@ -189,7 +189,8 @@ local function SetMacro(name, body)
         end
         CreateMacro(name, QUESTION_MARK_ICON, body, nil)
         perf.edits = perf.edits + 1
-    elseif GetMacroBody(index) ~= body then
+    elseif (GetMacroBody(index):gsub("%s+$", "")) ~= body then
+        -- The client stores bodies with a trailing newline; compare without it.
         EditMacro(index, name, QUESTION_MARK_ICON, body)
         perf.edits = perf.edits + 1
     end

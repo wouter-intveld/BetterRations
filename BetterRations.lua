@@ -60,6 +60,8 @@ local function ParseItem(id, bag, slot)
         C_Item.RequestLoadItemDataByID(id)
         return nil
     end
+    -- Recipes quote the tooltip of what they make, so judge by item class first.
+    if select(6, C_Item.GetItemInfoInstant(id)) ~= Enum.ItemClass.Consumable then return false end
     local data = C_TooltipInfo.GetBagItem(bag, slot)
     if not data or not data.lines then return nil end
     local parts = {}

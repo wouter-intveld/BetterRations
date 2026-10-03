@@ -16,6 +16,8 @@ local QUESTION_MARK_ICON = 134400 -- with #showtooltip the macro shows the item'
 
 local db
 
+local perf = { scans = 0, edits = 0, last = 0, lastKB = 0, lastReason = "", slowest = 0, slowestReason = "" }
+
 local function Print(msg)
     print("|cff33ff99BetterRations|r: " .. msg)
 end
@@ -134,17 +136,20 @@ local function SetMacro(name, body)
             return
         end
         CreateMacro(name, QUESTION_MARK_ICON, body, nil)
+        perf.edits = perf.edits + 1
     elseif GetMacroBody(index) ~= body then
         EditMacro(index, name, QUESTION_MARK_ICON, body)
+        perf.edits = perf.edits + 1
     end
 end
 
-local function Update()
+local function Update(reason)
     if InCombatLockdown() then
         dirty = true
         return
     end
     dirty = false
+    local t0, kb0 = debugprofilestop(), collectgarbage("count")
     ScanBags()
     for _, k in ipairs(KINDS) do
         local b = best[k.key]
@@ -161,17 +166,25 @@ local function Update()
         end
         SetMacro(k.macro, body)
     end
+    local ms = debugprofilestop() - t0
+    perf.scans = perf.scans + 1
+    perf.last, perf.lastKB, perf.lastReason = ms, collectgarbage("count") - kb0, reason
+    if ms > perf.slowest then perf.slowest, perf.slowestReason = ms, reason end
 end
 
 -- Bag events come in bursts; update once shortly after.
 local pending = false
-local function RequestUpdate()
+local function RequestUpdate(reason)
     if pending then return end
     pending = true
     C_Timer.After(0.5, function()
         pending = false
-        Update()
+        Update(reason)
     end)
+end
+
+local function LevelUpdate()
+    RequestUpdate("PLAYER_LEVEL_UP")
 end
 
 ---------------------------------------------------------------------------
@@ -185,7 +198,7 @@ local function RegisterSettings()
         local setting = Settings.RegisterProxySetting(category, "BR_" .. key, Settings.VarType.Boolean, name,
             DEFAULTS[key], function() return db[key] end, function(value)
                 db[key] = value
-                Update()
+                Update("settings")
             end)
         Settings.CreateCheckbox(category, setting, tooltip)
     end
@@ -203,15 +216,32 @@ end
 SLASH_BETTERRATIONS1 = "/br"
 SLASH_BETTERRATIONS2 = "/betterrations"
 SlashCmdList.BETTERRATIONS = function(msg)
-    local cmd = (msg or ""):lower():match("^(%S*)")
+    local cmd, arg = (msg or ""):lower():match("^(%S*)%s*(%S*)")
     if cmd == "buff" then
         db.buffFood = not db.buffFood
         Print("buff food in BR Eat " .. (db.buffFood and "on" or "off"))
-        Update()
+        Update("buff")
     elseif cmd == "options" or cmd == "config" then
         Settings.OpenToCategory(settingsCategory:GetID())
+    elseif cmd == "perf" then
+        if arg == "reset" then
+            perf.scans, perf.edits, perf.slowest, perf.slowestReason = 0, 0, 0, ""
+        end
+        local cached = 0
+        for _ in pairs(itemCache) do cached = cached + 1 end
+        UpdateAddOnMemoryUsage()
+        Print(("memory %.1f KB, %d items cached, %d scans, %d macro edits"):format(
+            GetAddOnMemoryUsage(ADDON), cached, perf.scans, perf.edits))
+        Print(("scan: last %.2f ms / %.1f KB (%s), slowest %.2f ms (%s)"):format(
+            perf.last, perf.lastKB, perf.lastReason, perf.slowest, perf.slowestReason))
+        if C_AddOnProfiler.IsEnabled() then
+            local metric = Enum.AddOnProfilerMetric
+            Print(("cpu recent avg %.3f ms/frame, peak %.3f ms"):format(
+                C_AddOnProfiler.GetAddOnMetric(ADDON, metric.RecentAverageTime),
+                C_AddOnProfiler.GetAddOnMetric(ADDON, metric.PeakTime)))
+        end
     elseif cmd == "" or cmd == "status" then
-        Update()
+        Update("status")
         for _, k in ipairs(KINDS) do
             local b = best[k.key]
             if b then
@@ -225,6 +255,7 @@ SlashCmdList.BETTERRATIONS = function(msg)
         Print("commands:")
         print("  /br - show the chosen items")
         print("  /br options - open the settings")
+        print("  /br perf - scan count, timing and memory; add reset to zero the counters")
         print("  /br buff - toggle Well Fed food in BR Eat (now " .. (db.buffFood and "on" or "off") .. ")")
     end
 end
@@ -253,13 +284,13 @@ frame:SetScript("OnEvent", function(_, event, arg1)
         return
     end
     if event == "PLAYER_REGEN_ENABLED" then
-        if dirty then Update() end
+        if dirty then Update(event) end
         return
     end
     if event == "PLAYER_LEVEL_UP" then
         -- Usability can lag the level change by a moment.
-        C_Timer.After(1, RequestUpdate)
+        C_Timer.After(1, LevelUpdate)
         return
     end
-    RequestUpdate()
+    RequestUpdate(event)
 end)

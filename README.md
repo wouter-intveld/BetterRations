@@ -34,6 +34,7 @@ them from the macro window (`/macro`) to your action bars.
 - `/br` - show the chosen items
 - `/br options` - open the settings (also under Options > AddOns)
 - `/br buff` - toggle buff food in `BR Eat`
+- `/br perf` - scan count, timing and memory
 
 The settings turn buff food and the in-combat healthstone in `BR Eat` on or
 off.

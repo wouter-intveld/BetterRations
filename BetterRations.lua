@@ -203,9 +203,9 @@ local retriesLeft = 0
 local Retry -- defined after Update; they call each other
 
 local function Update(reason)
-    -- No macro edits in combat, and on a flight path items are not usable,
-    -- so a scan there would empty the macros. Both cases run when they end.
-    if InCombatLockdown() or UnitOnTaxi("player") then
+    -- No macro edits in combat, and on a flight path or while dead items are
+    -- not usable, so a scan there would empty the macros. They run afterwards.
+    if InCombatLockdown() or UnitOnTaxi("player") or UnitIsDeadOrGhost("player") then
         dirty = true
         return
     end
@@ -370,6 +370,7 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         for _, e in ipairs({
             "PLAYER_ENTERING_WORLD", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP",
             "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_CONTROL_GAINED",
+            "PLAYER_ALIVE", "PLAYER_UNGHOST",
             "ITEM_DATA_LOAD_RESULT",
         }) do
             frame:RegisterEvent(e)
@@ -393,8 +394,9 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         -- (level and skills not known yet); scan again once that settles.
         C_Timer.After(5, function() RequestUpdate("login") end)
     end
-    if event == "PLAYER_LEVEL_UP" or event == "PLAYER_CONTROL_GAINED" then
-        -- Usability lags a level-up, and landing from a flight, by a moment.
+    if event == "PLAYER_LEVEL_UP" or event == "PLAYER_CONTROL_GAINED"
+        or event == "PLAYER_ALIVE" or event == "PLAYER_UNGHOST" then
+        -- Usability lags a level-up, landing and coming back to life by a moment.
         C_Timer.After(1, function() RequestUpdate(event) end)
         return
     end

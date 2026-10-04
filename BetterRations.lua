@@ -388,6 +388,11 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         if dirty then Update(event) end
         return
     end
+    if event == "PLAYER_ENTERING_WORLD" and arg1 then
+        -- On a cold login, items can read as unusable for a few seconds
+        -- (level and skills not known yet); scan again once that settles.
+        C_Timer.After(5, function() RequestUpdate("login") end)
+    end
     if event == "PLAYER_LEVEL_UP" or event == "PLAYER_CONTROL_GAINED" then
         -- Usability lags a level-up, and landing from a flight, by a moment.
         C_Timer.After(1, function() RequestUpdate(event) end)

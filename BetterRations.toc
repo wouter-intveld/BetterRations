@@ -7,4 +7,5 @@
 ## SavedVariables: BetterRationsDB
 ## X-Curse-Project-ID: 1724467
 
+Data.lua
 BetterRations.lua

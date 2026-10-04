@@ -4,3 +4,4 @@ ignore:
   - .luarc.json
   - .github
   - art
+  - tools

@@ -1,4 +1,4 @@
-local ADDON = ...
+local ADDON, ns = ...
 
 local DEFAULTS = {
     buffFood = false, -- allow Well Fed food in the eat macro
@@ -52,8 +52,20 @@ local function Number(s)
     return s and tonumber((s:gsub(",", ""))) or 0
 end
 
+-- From Data.lua, generated from the game's own data: works in every language.
+---@return BRItemInfo|nil
+local function FromData(id)
+    local d = ns.DATA[id]
+    if not d then return nil end
+    return {
+        health = d[1], mana = d[2], bandage = d[3], healthstone = d[4], healthPotion = d[5], manaPotion = d[6],
+        wellFed = d[7], conjured = d[8],
+    }
+end
+
+-- Fallback for items Data.lua does not know, from the English tooltip.
 ---@return BRItemInfo|false|nil info false when the item has no use, nil when its data is not loaded yet
-local function ParseItem(id, bag, slot)
+local function ParseTooltip(id, bag, slot)
     if not C_Item.IsItemDataCachedByID(id) then
         -- The tooltip would only say "Retrieving item information".
         awaiting[id] = true
@@ -95,6 +107,11 @@ local function ParseItem(id, bag, slot)
         return false
     end
     return info
+end
+
+---@return BRItemInfo|false|nil
+local function ParseItem(id, bag, slot)
+    return FromData(id) or ParseTooltip(id, bag, slot)
 end
 
 ---------------------------------------------------------------------------

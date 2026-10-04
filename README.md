@@ -46,5 +46,8 @@ Potions are off by default.
 
 ## Limits
 
-Items are recognised from their English tooltip text, so the addon only works
-on English clients for now.
+Items are recognised from a table built from the game's own data, so the
+addon works in every client language. Items missing from the table are read
+from their English tooltip, which only works on English clients.
+
+To rebuild the table after a game patch, run `bun tools/gen-data.js`.

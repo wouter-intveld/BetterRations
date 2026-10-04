@@ -47,6 +47,7 @@ end
 -- false marks an item with nothing to offer; nil means not parsed yet.
 local itemCache = {} ---@type table<number, BRItemInfo|false>
 local awaiting = {} -- item IDs whose data was requested from the server
+local awaitingSpell = {} -- spell IDs of item use effects requested from the server
 
 local function Number(s)
     return s and tonumber((s:gsub(",", ""))) or 0
@@ -74,6 +75,14 @@ local function ParseTooltip(id, bag, slot)
     end
     -- Recipes quote the tooltip of what they make, so judge by item class first.
     if select(6, C_Item.GetItemInfoInstant(id)) ~= Enum.ItemClass.Consumable then return false end
+    -- After a cold start the "Use:" line stays missing until the item's spell
+    -- is loaded, and the client does not load it by itself.
+    local _, spellID = C_Item.GetItemSpell(id)
+    if spellID and not C_Spell.IsSpellDataCached(spellID) then
+        awaitingSpell[spellID] = true
+        C_Spell.RequestLoadSpellData(spellID)
+        return nil
+    end
     local data = C_TooltipInfo.GetBagItem(bag, slot)
     if not data or not data.lines then return nil end
     local parts = {}
@@ -388,7 +397,7 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
             "PLAYER_ENTERING_WORLD", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP",
             "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_CONTROL_GAINED",
             "PLAYER_ALIVE", "PLAYER_UNGHOST",
-            "ITEM_DATA_LOAD_RESULT",
+            "ITEM_DATA_LOAD_RESULT", "SPELL_DATA_LOAD_RESULT",
         }) do
             frame:RegisterEvent(e)
         end
@@ -399,6 +408,13 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         if awaiting[arg1] then
             awaiting[arg1] = nil
             if arg2 then RequestUpdate(event) else itemCache[arg1] = false end
+        end
+        return
+    end
+    if event == "SPELL_DATA_LOAD_RESULT" then
+        if awaitingSpell[arg1] then
+            awaitingSpell[arg1] = nil
+            RequestUpdate(event)
         end
         return
     end

@@ -244,6 +244,10 @@ local function Update(reason)
     if reason ~= "retry" then retriesLeft = RETRIES end
     local t0, kb0 = debugprofilestop(), collectgarbage("count")
     ScanBags()
+    -- The client does not redraw a macro's icon when combat starts, so [combat]
+    -- icons stay on the out-of-combat item. Entering combat, which fires just
+    -- before macros lock, swaps in combat-only bodies; leaving combat restores.
+    local entering = reason == "PLAYER_REGEN_DISABLED"
     for _, k in ipairs(KINDS) do
         local b = best[k.key]
         local c1, c2 = CombatItems(k.key)
@@ -251,7 +255,11 @@ local function Update(reason)
         -- Without food or drink the combat items stay combat-only; out of combat
         -- the macro says what is missing instead of spending a healthstone.
         local missing = ("/run if not InCombatLockdown() then print(\"|cff33ff99BetterRations|r: %s\") end"):format(k.empty)
-        if c1 and c2 and b then
+        if entering and c1 and c2 then
+            body = ("#showtooltip\n/castsequence reset=combat item:%d, item:%d"):format(c1.itemID, c2.itemID)
+        elseif entering and c1 then
+            body = "#showtooltip\n/use item:" .. c1.itemID
+        elseif c1 and c2 and b then
             body = ("#showtooltip\n/castsequence [combat] reset=combat item:%d, item:%d; item:%d"):format(
                 c1.itemID, c2.itemID, b.itemID)
         elseif c1 and c2 then
@@ -272,6 +280,7 @@ local function Update(reason)
         local icon = not (b or c1) and C_Item.GetItemIconByID(k.placeholder) or nil
         SetMacro(k.macro, body, icon)
     end
+    if entering then dirty = true end -- restore the normal bodies after the fight
     local ms = debugprofilestop() - t0
     perf.scans = perf.scans + 1
     perf.last, perf.lastKB, perf.lastReason = ms, collectgarbage("count") - kb0, reason
@@ -408,7 +417,7 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         RegisterSettings()
         for _, e in ipairs({
             "PLAYER_ENTERING_WORLD", "BAG_UPDATE_DELAYED", "PLAYER_LEVEL_UP",
-            "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_CONTROL_GAINED",
+            "SKILL_LINES_CHANGED", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "PLAYER_CONTROL_GAINED",
             "PLAYER_ALIVE", "PLAYER_UNGHOST",
             "ITEM_DATA_LOAD_RESULT", "SPELL_DATA_LOAD_RESULT",
         }) do
@@ -429,6 +438,10 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
             awaitingSpell[arg1] = nil
             RequestUpdate(event)
         end
+        return
+    end
+    if event == "PLAYER_REGEN_DISABLED" then
+        Update(event) -- immediately: a debounced update would land after the lock
         return
     end
     if event == "PLAYER_REGEN_ENABLED" then

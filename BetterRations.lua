@@ -7,9 +7,10 @@ local DEFAULTS = {
 }
 
 local KINDS = {
-    { key = "eat", macro = "BR Eat", empty = "no food" },
-    { key = "drink", macro = "BR Drink", empty = "no drink" },
-    { key = "bandage", macro = "BR Bandage", empty = "no usable bandage" },
+    -- placeholder: an item whose icon the empty macro shows
+    { key = "eat", macro = "BR Eat", empty = "no food", placeholder = 4540 }, -- Tough Hunk of Bread
+    { key = "drink", macro = "BR Drink", empty = "no drink", placeholder = 159 }, -- Refreshing Spring Water
+    { key = "bandage", macro = "BR Bandage", empty = "no usable bandage", placeholder = 1251 }, -- Linen Bandage
 }
 
 -- Keys of best: the things a bag item can be good for.
@@ -205,7 +206,8 @@ end
 ---------------------------------------------------------------------------
 local dirty = false
 
-local function SetMacro(name, body)
+-- icon is only given for empty macros; filled ones show their item via #showtooltip.
+local function SetMacro(name, body, icon)
     local index = GetMacroIndexByName(name)
     if index == 0 then
         local accountMacros = GetNumMacros()
@@ -213,11 +215,14 @@ local function SetMacro(name, body)
             Print("no free account macro slot for " .. name)
             return
         end
-        CreateMacro(name, QUESTION_MARK_ICON, body, nil)
+        CreateMacro(name, icon or QUESTION_MARK_ICON, body, nil)
         perf.edits = perf.edits + 1
-    elseif (GetMacroBody(index):gsub("%s+$", "")) ~= body then
-        -- The client stores bodies with a trailing newline; compare without it.
-        EditMacro(index, name, QUESTION_MARK_ICON, body)
+        return
+    end
+    local _, storedIcon, storedBody = GetMacroInfo(index)
+    -- The client stores bodies with a trailing newline; compare without it.
+    if storedBody:gsub("%s+$", "") ~= body or (icon and storedIcon ~= icon) then
+        EditMacro(index, name, icon or QUESTION_MARK_ICON, body)
         perf.edits = perf.edits + 1
     end
 end
@@ -257,7 +262,8 @@ local function Update(reason)
         else
             body = ("/run print(\"|cff33ff99BetterRations|r: %s\")"):format(k.empty)
         end
-        SetMacro(k.macro, body)
+        local icon = not (b or c1) and C_Item.GetItemIconByID(k.placeholder) or nil
+        SetMacro(k.macro, body, icon)
     end
     local ms = debugprofilestop() - t0
     perf.scans = perf.scans + 1

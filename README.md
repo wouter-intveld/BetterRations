@@ -29,6 +29,8 @@ them from the macro window (`/macro`) to your action bars.
   steps through healthstone and healing potion: the first press in a fight
   uses the stone, the second the potion, and the order starts over when the
   fight ends. Without a healthstone it uses the potion straight away.
+  Healthstones and potions are only used in combat, also when you have no
+  food or drink left.
 - Buff food (Well Fed) is left out of `BR Eat`. Use `/br buff` to include it.
 - Macros cannot change in combat, so they update when combat ends.
 - With nothing to use, the macro stays on your bar and says so when clicked.

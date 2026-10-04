@@ -248,20 +248,27 @@ local function Update(reason)
         local b = best[k.key]
         local c1, c2 = CombatItems(k.key)
         local body
+        -- Without food or drink the combat items stay combat-only; out of combat
+        -- the macro says what is missing instead of spending a healthstone.
+        local missing = ("/run if not InCombatLockdown() then print(\"|cff33ff99BetterRations|r: %s\") end"):format(k.empty)
         if c1 and c2 and b then
             body = ("#showtooltip\n/castsequence [combat] reset=combat item:%d, item:%d; item:%d"):format(
                 c1.itemID, c2.itemID, b.itemID)
         elseif c1 and c2 then
-            body = ("#showtooltip\n/castsequence reset=combat item:%d, item:%d"):format(c1.itemID, c2.itemID)
+            body = ("#showtooltip [combat] item:%d; item:%d\n/castsequence [combat] reset=combat item:%d, item:%d\n%s"):format(
+                c1.itemID, k.placeholder, c1.itemID, c2.itemID, missing)
         elseif c1 and b then
             body = ("#showtooltip\n/use [combat] item:%d; item:%d"):format(c1.itemID, b.itemID)
         elseif c1 then
-            body = "#showtooltip\n/use item:" .. c1.itemID
+            body = ("#showtooltip [combat] item:%d; item:%d\n/use [combat] item:%d\n%s"):format(
+                c1.itemID, k.placeholder, c1.itemID, missing)
         elseif b then
             body = "#showtooltip\n/use item:" .. b.itemID
         else
             body = ("/run print(\"|cff33ff99BetterRations|r: %s\")"):format(k.empty)
         end
+        -- A fixed icon would override #showtooltip, so only a fully empty macro gets one;
+        -- a combat-only macro names the placeholder in its #showtooltip line instead.
         local icon = not (b or c1) and C_Item.GetItemIconByID(k.placeholder) or nil
         SetMacro(k.macro, body, icon)
     end

@@ -369,6 +369,10 @@ SlashCmdList.BETTERRATIONS = function(msg)
         db.buffFood = not db.buffFood
         Print("buff food and drink " .. (db.buffFood and "on" or "off"))
         Update("buff")
+    elseif cmd == "healthstone" then
+        db.healthstone = not db.healthstone
+        Print("healthstone in combat " .. (db.healthstone and "on" or "off"))
+        Update("healthstone")
     elseif cmd == "potions" then
         db.potions = not db.potions
         Print("potions in combat " .. (db.potions and "on" or "off"))
@@ -419,6 +423,7 @@ SlashCmdList.BETTERRATIONS = function(msg)
         print("  /br options - open the settings")
         print("  /br perf - scan count, timing and memory; add reset to zero the counters")
         print("  /br buff - toggle Well Fed food and drink (now " .. (db.buffFood and "on" or "off") .. ")")
+        print("  /br healthstone - toggle the healthstone in combat (now " .. (db.healthstone and "on" or "off") .. ")")
         print("  /br potions - toggle potions in combat (now " .. (db.potions and "on" or "off") .. ")")
     end
 end

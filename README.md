@@ -42,6 +42,7 @@ them from the macro window (`/macro`) to your action bars.
 - `/br` - show the chosen items
 - `/br options` - open the settings (also under Options > AddOns)
 - `/br buff` - toggle buff food and drink
+- `/br healthstone` - toggle the healthstone in combat
 - `/br potions` - toggle potions in combat
 - `/br perf` - scan count, timing and memory
 

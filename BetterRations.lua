@@ -48,7 +48,7 @@ end
 -- false marks an item with nothing to offer; nil means not parsed yet.
 local itemCache = {} ---@type table<number, BRItemInfo|false>
 local awaiting = {} -- item IDs whose data was requested from the server
-local awaitingSpell = {} -- spell IDs of item use effects requested from the server
+local awaitingSpell = {} -- spell ID of an item use effect requested from the server -> item ID
 
 local function Number(s)
     return s and tonumber((s:gsub(",", ""))) or 0
@@ -80,7 +80,7 @@ local function ParseTooltip(id, bag, slot)
     -- is loaded, and the client does not load it by itself.
     local _, spellID = C_Item.GetItemSpell(id)
     if spellID and not C_Spell.IsSpellDataCached(spellID) then
-        awaitingSpell[spellID] = true
+        awaitingSpell[spellID] = id
         C_Spell.RequestLoadSpellData(spellID)
         return nil
     end
@@ -441,9 +441,11 @@ frame:SetScript("OnEvent", function(_, event, arg1, arg2)
         return
     end
     if event == "SPELL_DATA_LOAD_RESULT" then
-        if awaitingSpell[arg1] then
+        local id = awaitingSpell[arg1]
+        if id then
             awaitingSpell[arg1] = nil
-            RequestUpdate(event)
+            -- A failed load would only be requested again by the next scan, forever.
+            if arg2 then RequestUpdate(event) else itemCache[id] = false end
         end
         return
     end

@@ -216,8 +216,19 @@ local dirty = false
 -- icon is only given for empty macros; filled ones show their item via #showtooltip.
 local warnedNoSlot = false -- the message would otherwise repeat at every scan
 
-local function SetMacro(name, body, icon)
+-- GetMacroIndexByName also finds character macros (indexes past the account
+-- ones), and a player's own character macro of the same name is not ours.
+local function AccountMacroIndex(name)
     local index = GetMacroIndexByName(name)
+    if index <= MAX_ACCOUNT_MACROS then return index end
+    for i = 1, (GetNumMacros()) do
+        if GetMacroInfo(i) == name then return i end
+    end
+    return 0
+end
+
+local function SetMacro(name, body, icon)
+    local index = AccountMacroIndex(name)
     if index == 0 then
         local accountMacros = GetNumMacros()
         if accountMacros >= MAX_ACCOUNT_MACROS then

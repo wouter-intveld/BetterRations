@@ -293,6 +293,9 @@ local function Update(reason)
         elseif c1 then
             body = ("#showtooltip [combat] item:%d; item:%d\n/use [combat] item:%d\n%s"):format(
                 c1.itemID, k.placeholder, c1.itemID, missing)
+        elseif b and k.key == "bandage" then
+            -- Right-click always bandages yourself; left-click keeps the usual target.
+            body = "#showtooltip\n/use [btn:2,@player][] item:" .. b.itemID
         elseif b then
             body = "#showtooltip\n/use item:" .. b.itemID
         else

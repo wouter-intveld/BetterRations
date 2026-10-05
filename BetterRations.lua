@@ -188,10 +188,19 @@ end
 
 -- What the macro uses in combat instead of food or drink: up to two items.
 -- With two, the macro steps through them, healthstone first, then potion.
+local function OnCooldown(itemID)
+    local start, duration = C_Container.GetItemCooldown(itemID)
+    -- Up to a global cooldown counts as ready: it is over by the next press.
+    return duration > 1.5 and start + duration > GetTime()
+end
+
 local function CombatItems(key)
     if key == "eat" then
         local stone = db.healthstone and best.healthstone or nil
         local potion = db.potions and best.healthPotion or nil
+        -- /castsequence only moves on when a step succeeds, so a stone still
+        -- cooling down from the last fight would keep the potion out of reach.
+        if stone and potion and OnCooldown(stone.itemID) then stone = nil end
         return stone or potion, stone and potion or nil
     elseif key == "drink" then
         return db.potions and best.manaPotion or nil, nil

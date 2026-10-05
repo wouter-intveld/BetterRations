@@ -28,7 +28,8 @@ them from the macro window (`/macro`) to your action bars.
   potions turned on, `BR Drink` uses your best mana potion, and `BR Eat`
   steps through healthstone and healing potion: the first press in a fight
   uses the stone, the second the potion, and the order starts over when the
-  fight ends. Without a healthstone it uses the potion straight away.
+  fight ends. Without a healthstone, or with one still on cooldown when the
+  fight starts, it uses the potion straight away.
   Healthstones and potions are only used in combat, also when you have no
   food or drink left.
 - Buff food and drink (Well Fed) are left out of `BR Eat` and `BR Drink`.

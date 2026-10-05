@@ -99,7 +99,9 @@ local function ParseTooltip(id, bag, slot)
     -- Food and drink require sitting; this keeps potions and healthstones out.
     if text:find("seated") then
         info.health = Number(text:match("Restores ([%d%.,]+) health"))
-        info.mana = Number(text:match("([%d%.,]+) mana"))
+        -- Anchored on "Restores": Well Fed lines like "gain 8 mana every 5 seconds" also say mana.
+        info.mana = Number(text:match("Restores ([%d%.,]+) mana")
+            or text:match("Restores [%d%.,]+ health and ([%d%.,]+) mana"))
         info.wellFed = text:lower():find("well fed") ~= nil
     elseif name:find("Healthstone") then
         info.healthstone = Number(text:match("[Rr]estores ([%d%.,]+)"))

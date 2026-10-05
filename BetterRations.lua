@@ -1,7 +1,7 @@
 local ADDON, ns = ...
 
 local DEFAULTS = {
-    buffFood = false, -- allow Well Fed food in the eat macro
+    buffFood = false, -- allow Well Fed food and drink in the eat and drink macros
     healthstone = true, -- use a healthstone from the eat macro in combat
     potions = false, -- healing potion in BR Eat and mana potion in BR Drink, in combat
 }
@@ -128,11 +128,9 @@ end
 -- Picking the best item per kind
 ---------------------------------------------------------------------------
 local function Amount(kind, info)
-    if kind == "eat" then
+    if kind == "eat" or kind == "drink" then
         if info.wellFed and not db.buffFood then return 0 end
-        return info.health
-    elseif kind == "drink" then
-        return info.mana
+        return kind == "eat" and info.health or info.mana
     elseif kind == "healthstone" then
         return info.healthstone
     elseif kind == "healthPotion" then
@@ -325,8 +323,8 @@ local function RegisterSettings()
             end)
         Settings.CreateCheckbox(category, setting, tooltip)
     end
-    Checkbox("buffFood", "Buff food in BR Eat",
-        "Let BR Eat use food that makes you Well Fed. Off keeps buff food for when you want the buff.")
+    Checkbox("buffFood", "Buff food and drink",
+        "Let BR Eat and BR Drink use food and drink that make you Well Fed. Off keeps them for when you want the buff.")
     Checkbox("healthstone", "Healthstone in combat",
         "In combat, BR Eat uses your best healthstone instead of food.")
     Checkbox("potions", "Potions in combat",
@@ -344,7 +342,7 @@ SlashCmdList.BETTERRATIONS = function(msg)
     local cmd, arg = (msg or ""):lower():match("^(%S*)%s*(%S*)")
     if cmd == "buff" then
         db.buffFood = not db.buffFood
-        Print("buff food in BR Eat " .. (db.buffFood and "on" or "off"))
+        Print("buff food and drink " .. (db.buffFood and "on" or "off"))
         Update("buff")
     elseif cmd == "potions" then
         db.potions = not db.potions
@@ -395,7 +393,7 @@ SlashCmdList.BETTERRATIONS = function(msg)
         print("  /br - show the chosen items")
         print("  /br options - open the settings")
         print("  /br perf - scan count, timing and memory; add reset to zero the counters")
-        print("  /br buff - toggle Well Fed food in BR Eat (now " .. (db.buffFood and "on" or "off") .. ")")
+        print("  /br buff - toggle Well Fed food and drink (now " .. (db.buffFood and "on" or "off") .. ")")
         print("  /br potions - toggle potions in combat (now " .. (db.potions and "on" or "off") .. ")")
     end
 end

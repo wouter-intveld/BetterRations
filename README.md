@@ -31,7 +31,8 @@ them from the macro window (`/macro`) to your action bars.
   fight ends. Without a healthstone it uses the potion straight away.
   Healthstones and potions are only used in combat, also when you have no
   food or drink left.
-- Buff food (Well Fed) is left out of `BR Eat`. Use `/br buff` to include it.
+- Buff food and drink (Well Fed) are left out of `BR Eat` and `BR Drink`.
+  Use `/br buff` to include them.
 - Macros cannot change in combat, so they update when combat ends.
 - With nothing to use, the macro stays on your bar and says so when clicked.
 
@@ -39,11 +40,11 @@ them from the macro window (`/macro`) to your action bars.
 
 - `/br` - show the chosen items
 - `/br options` - open the settings (also under Options > AddOns)
-- `/br buff` - toggle buff food in `BR Eat`
+- `/br buff` - toggle buff food and drink
 - `/br potions` - toggle potions in combat
 - `/br perf` - scan count, timing and memory
 
-The settings turn buff food, the in-combat healthstone and potions on or off.
+The settings turn buff food and drink, the in-combat healthstone and potions on or off.
 Potions are off by default.
 
 ## Limits

@@ -214,12 +214,15 @@ end
 local dirty = false
 
 -- icon is only given for empty macros; filled ones show their item via #showtooltip.
+local warnedNoSlot = false -- the message would otherwise repeat at every scan
+
 local function SetMacro(name, body, icon)
     local index = GetMacroIndexByName(name)
     if index == 0 then
         local accountMacros = GetNumMacros()
         if accountMacros >= MAX_ACCOUNT_MACROS then
-            Print("no free account macro slot for " .. name)
+            if not warnedNoSlot then Print("no free account macro slot; delete one for the BR macros") end
+            warnedNoSlot = true
             return
         end
         CreateMacro(name, icon or QUESTION_MARK_ICON, body, nil)

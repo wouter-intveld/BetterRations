@@ -102,6 +102,7 @@ for (const item of items) {
     // Fields: health, mana, bandage, healthstone, healthPotion, manaPotion, wellFed, conjured
     const row = [0, 0, 0, 0, 0, 0];
     const name = s.Display_lang ?? "";
+    if (name.startsWith("Deprecated")) continue; // removed from the game, no one carries them
     if (item.SubclassID === SUB.food) {
         row[0] = info.health;
         row[1] = info.mana;

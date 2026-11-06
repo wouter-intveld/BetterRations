@@ -1,5 +1,6 @@
 ## Interface: 16001
 ## Title: |cff33ff99Better|rRations
+## Category: Inventory
 ## Notes: Self-updating macros for your best food, drink and bandage.
 ## Author: deface
 ## Version: @project-version@

@@ -24,7 +24,7 @@ local db
 local perf = { scans = 0, edits = 0, last = 0, lastKB = 0, lastReason = "", slowest = 0, slowestReason = "" }
 
 local function Print(msg)
-    print("|cff33ff99BetterRations|r: " .. msg)
+    print("|cffcda552BetterRations|r: " .. msg)
 end
 
 local function Link(itemID)
@@ -277,7 +277,7 @@ local function Update(reason)
         local body
         -- Without food or drink the combat items stay combat-only; out of combat
         -- the macro says what is missing instead of spending a healthstone.
-        local missing = ("/run if not InCombatLockdown() then print(\"|cff33ff99BetterRations|r: %s\") end"):format(k.empty)
+        local missing = ("/run if not InCombatLockdown() then print(\"|cffcda552BetterRations|r: %s\") end"):format(k.empty)
         if entering and c1 and c2 then
             body = ("#showtooltip\n/castsequence reset=combat item:%d, item:%d"):format(c1.itemID, c2.itemID)
         elseif entering and c1 then
@@ -299,7 +299,7 @@ local function Update(reason)
         elseif b then
             body = "#showtooltip\n/use item:" .. b.itemID
         else
-            body = ("/run print(\"|cff33ff99BetterRations|r: %s\")"):format(k.empty)
+            body = ("/run print(\"|cffcda552BetterRations|r: %s\")"):format(k.empty)
         end
         -- A fixed icon would override #showtooltip, so only a fully empty macro gets one;
         -- a combat-only macro names the placeholder in its #showtooltip line instead.
@@ -342,7 +342,7 @@ end
 local settingsCategory
 
 local function RegisterSettings()
-    local category = Settings.RegisterVerticalLayoutCategory("|cff33ff99Better|rRations")
+    local category = Settings.RegisterVerticalLayoutCategory("|cffcda552Better|rRations")
     local function Checkbox(key, name, tooltip)
         local setting = Settings.RegisterProxySetting(category, "BR_" .. key, Settings.VarType.Boolean, name,
             DEFAULTS[key], function() return db[key] end, function(value)

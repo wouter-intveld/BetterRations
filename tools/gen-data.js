@@ -93,7 +93,8 @@ function scan(spellID, info, depth = 0) {
 
 const out = [];
 for (const item of items) {
-    if (item.ClassID !== CONSUMABLE) continue;
+    // Raw fish and the like are Trade Goods, yet eating them is food all the same.
+    const consumable = item.ClassID === CONSUMABLE;
     const spells = spellsByItem.get(item.ID);
     const s = sparseByID.get(item.ID);
     if (!spells || !s) continue;
@@ -103,7 +104,7 @@ for (const item of items) {
     const row = [0, 0, 0, 0, 0, 0];
     const name = s.Display_lang ?? "";
     if (name.startsWith("Deprecated")) continue; // removed from the game, no one carries them
-    if (item.SubclassID === SUB.food) {
+    if (!consumable || item.SubclassID === SUB.food) {
         row[0] = info.health;
         row[1] = info.mana;
     } else if (item.SubclassID === SUB.bandage) {

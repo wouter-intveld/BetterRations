@@ -1,4 +1,5 @@
 local ADDON, ns = ...
+local BRAND = "|cffcda552Better|rRations"
 
 local DEFAULTS = {
     buffFood = false, -- allow Well Fed food and drink in the eat and drink macros
@@ -24,7 +25,7 @@ local db
 local perf = { scans = 0, edits = 0, last = 0, lastKB = 0, lastReason = "", slowest = 0, slowestReason = "" }
 
 local function Print(msg)
-    print("|cffcda552BetterRations|r: " .. msg)
+    print(BRAND .. ": " .. msg)
 end
 
 local function Link(itemID)
@@ -69,9 +70,12 @@ end
 ---@return BRItemInfo|false|nil info false when the item has no use, nil when its data is not loaded yet
 local function ParseTooltip(id, bag, slot)
     if not C_Item.IsItemDataCachedByID(id) then
-        -- The tooltip would only say "Retrieving item information".
-        awaiting[id] = true
-        C_Item.RequestLoadItemDataByID(id)
+        -- The tooltip would only say "Retrieving item information". Asked once:
+        -- every stack of the item, and every scan until it arrives, lands here.
+        if not awaiting[id] then
+            awaiting[id] = true
+            C_Item.RequestLoadItemDataByID(id)
+        end
         return nil
     end
     -- Recipes quote the tooltip of what they make, so judge by item class first.
@@ -80,8 +84,10 @@ local function ParseTooltip(id, bag, slot)
     -- is loaded, and the client does not load it by itself.
     local _, spellID = C_Item.GetItemSpell(id)
     if spellID and not C_Spell.IsSpellDataCached(spellID) then
-        awaitingSpell[spellID] = id
-        C_Spell.RequestLoadSpellData(spellID)
+        if not awaitingSpell[spellID] then
+            awaitingSpell[spellID] = id
+            C_Spell.RequestLoadSpellData(spellID)
+        end
         return nil
     end
     local data = C_TooltipInfo.GetBagItem(bag, slot)
@@ -145,13 +151,14 @@ end
 
 -- Best = most restored; at equal strength conjured wins (it vanishes on
 -- logout anyway), then the smallest stack.
-local function Better(a, b)
-    if a.amount ~= b.amount then return a.amount > b.amount end
-    if a.conjured ~= b.conjured then return a.conjured end
-    return a.count < b.count
+local function Better(amount, conjured, count, b)
+    if amount ~= b.amount then return amount > b.amount end
+    if conjured ~= b.conjured then return conjured end
+    return count < b.count
 end
 
-local best = {}
+local best = {}    -- kind -> the record of its best item, this scan
+local records = {} -- kind -> that record, reused from scan to scan
 local seen = {} ---@type table<number, BRItemInfo> consumables in the bags right now
 local unresolved = 0 -- items the last scan could not read yet
 
@@ -180,8 +187,13 @@ local function ScanBags()
             for _, key in ipairs(PICKS) do
                 local amount = Amount(key, info)
                 if amount > 0 then
-                    local c = { itemID = id, amount = amount, conjured = info.conjured, count = count }
-                    if not best[key] or Better(c, best[key]) then best[key] = c end
+                    local cur = best[key]
+                    if not cur or Better(amount, info.conjured, count, cur) then
+                        cur = cur or records[key] or {}
+                        records[key] = cur
+                        cur.itemID, cur.amount, cur.conjured, cur.count = id, amount, info.conjured, count
+                        best[key] = cur
+                    end
                 end
             end
         end
@@ -250,10 +262,47 @@ local function SetMacro(name, body, icon)
     end
 end
 
+-- Out of combat the macro says what is missing instead of spending a healthstone.
+local function MissingLine(k)
+    return ("/run if not InCombatLockdown() then print(\"%s: %s\") end"):format(BRAND, k.empty)
+end
+
+-- The macro for one kind: b its best item out of combat, c1 and c2 what it uses
+-- in combat (CombatItems), entering true as combat starts. The client does not
+-- redraw a macro's icon when combat starts, so [combat] icons stay on the
+-- out-of-combat item: entering combat swaps in combat-only bodies.
+local function MacroBody(k, b, c1, c2, entering)
+    if entering and c1 and c2 then
+        return ("#showtooltip\n/castsequence reset=combat item:%d, item:%d"):format(c1.itemID, c2.itemID)
+    elseif entering and c1 then
+        return "#showtooltip\n/use item:" .. c1.itemID
+    elseif c1 and c2 and b then
+        return ("#showtooltip\n/castsequence [combat] reset=combat item:%d, item:%d; item:%d"):format(
+            c1.itemID, c2.itemID, b.itemID)
+    elseif c1 and c2 then
+        -- Without food or drink the combat items stay combat-only.
+        return ("#showtooltip [combat] item:%d; item:%d\n/castsequence [combat] reset=combat item:%d, item:%d\n%s"):format(
+            c1.itemID, k.placeholder, c1.itemID, c2.itemID, MissingLine(k))
+    elseif c1 and b then
+        return ("#showtooltip\n/use [combat] item:%d; item:%d"):format(c1.itemID, b.itemID)
+    elseif c1 then
+        return ("#showtooltip [combat] item:%d; item:%d\n/use [combat] item:%d\n%s"):format(
+            c1.itemID, k.placeholder, c1.itemID, MissingLine(k))
+    elseif b and k.key == "bandage" then
+        -- Right-click always bandages yourself; left-click keeps the usual target.
+        return "#showtooltip\n/use [btn:2,@player][] item:" .. b.itemID
+    elseif b then
+        return "#showtooltip\n/use item:" .. b.itemID
+    end
+    return ("/run print(\"%s: %s\")"):format(BRAND, k.empty)
+end
+
 -- A freshly crafted or looted item can be unreadable for a moment (its data
--- or its spell not loaded yet). A scan that hit one is retried a few times.
+-- or its spell not loaded yet). A scan that hit one is retried a few times,
+-- one retry timer at a time.
 local RETRIES = 3
 local retriesLeft = 0
+local retryPending = false
 local Retry -- defined after Update; they call each other
 
 local function Update(reason)
@@ -267,57 +316,31 @@ local function Update(reason)
     if reason ~= "retry" then retriesLeft = RETRIES end
     local t0, kb0 = debugprofilestop(), collectgarbage("count")
     ScanBags()
-    -- The client does not redraw a macro's icon when combat starts, so [combat]
-    -- icons stay on the out-of-combat item. Entering combat, which fires just
-    -- before macros lock, swaps in combat-only bodies; leaving combat restores.
+    -- Entering combat, which fires just before macros lock, swaps in the
+    -- combat-only bodies (MacroBody); leaving combat restores the others.
     local entering = reason == "PLAYER_REGEN_DISABLED"
     for _, k in ipairs(KINDS) do
         local b = best[k.key]
         local c1, c2 = CombatItems(k.key)
-        local body
-        -- Without food or drink the combat items stay combat-only; out of combat
-        -- the macro says what is missing instead of spending a healthstone.
-        local missing = ("/run if not InCombatLockdown() then print(\"|cffcda552BetterRations|r: %s\") end"):format(k.empty)
-        if entering and c1 and c2 then
-            body = ("#showtooltip\n/castsequence reset=combat item:%d, item:%d"):format(c1.itemID, c2.itemID)
-        elseif entering and c1 then
-            body = "#showtooltip\n/use item:" .. c1.itemID
-        elseif c1 and c2 and b then
-            body = ("#showtooltip\n/castsequence [combat] reset=combat item:%d, item:%d; item:%d"):format(
-                c1.itemID, c2.itemID, b.itemID)
-        elseif c1 and c2 then
-            body = ("#showtooltip [combat] item:%d; item:%d\n/castsequence [combat] reset=combat item:%d, item:%d\n%s"):format(
-                c1.itemID, k.placeholder, c1.itemID, c2.itemID, missing)
-        elseif c1 and b then
-            body = ("#showtooltip\n/use [combat] item:%d; item:%d"):format(c1.itemID, b.itemID)
-        elseif c1 then
-            body = ("#showtooltip [combat] item:%d; item:%d\n/use [combat] item:%d\n%s"):format(
-                c1.itemID, k.placeholder, c1.itemID, missing)
-        elseif b and k.key == "bandage" then
-            -- Right-click always bandages yourself; left-click keeps the usual target.
-            body = "#showtooltip\n/use [btn:2,@player][] item:" .. b.itemID
-        elseif b then
-            body = "#showtooltip\n/use item:" .. b.itemID
-        else
-            body = ("/run print(\"|cffcda552BetterRations|r: %s\")"):format(k.empty)
-        end
         -- A fixed icon would override #showtooltip, so only a fully empty macro gets one;
         -- a combat-only macro names the placeholder in its #showtooltip line instead.
         local icon = not (b or c1) and C_Item.GetItemIconByID(k.placeholder) or nil
-        SetMacro(k.macro, body, icon)
+        SetMacro(k.macro, MacroBody(k, b, c1, c2, entering), icon)
     end
     if entering then dirty = true end -- restore the normal bodies after the fight
     local ms = debugprofilestop() - t0
     perf.scans = perf.scans + 1
     perf.last, perf.lastKB, perf.lastReason = ms, collectgarbage("count") - kb0, reason
     if ms > perf.slowest then perf.slowest, perf.slowestReason = ms, reason end
-    if unresolved > 0 and retriesLeft > 0 then
+    if unresolved > 0 and retriesLeft > 0 and not retryPending then
         retriesLeft = retriesLeft - 1
+        retryPending = true
         C_Timer.After(1, Retry)
     end
 end
 
 function Retry()
+    retryPending = false
     Update("retry")
 end
 
@@ -342,7 +365,7 @@ end
 local settingsCategory
 
 local function RegisterSettings()
-    local category = Settings.RegisterVerticalLayoutCategory("|cffcda552Better|rRations")
+    local category = Settings.RegisterVerticalLayoutCategory(BRAND)
     local function Checkbox(key, name, tooltip)
         local setting = Settings.RegisterProxySetting(category, "BR_" .. key, Settings.VarType.Boolean, name,
             DEFAULTS[key], function() return db[key] end, function(value)
@@ -396,7 +419,8 @@ SlashCmdList.BETTERRATIONS = function(msg)
             GetAddOnMemoryUsage(ADDON), cached, useful, unresolved, perf.scans, perf.edits))
         Print(("scan: last %.2f ms / %.1f KB (%s), slowest %.2f ms (%s)"):format(
             perf.last, perf.lastKB, perf.lastReason, perf.slowest, perf.slowestReason))
-        if C_AddOnProfiler.IsEnabled() then
+        if C_AddOnProfiler and C_AddOnProfiler.IsEnabled and C_AddOnProfiler.IsEnabled()
+            and Enum.AddOnProfilerMetric then
             local metric = Enum.AddOnProfilerMetric
             Print(("cpu recent avg %.3f ms/frame, peak %.3f ms"):format(
                 C_AddOnProfiler.GetAddOnMetric(ADDON, metric.RecentAverageTime),
